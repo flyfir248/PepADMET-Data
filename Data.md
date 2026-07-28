@@ -114,3 +114,41 @@ Caco-2 is most often used for evaluating overall permeability and involvement of
 - van Breemen & Li, 2005 — Caco-2 assay
 
 Want me to pull exact DOIs/full citations for Ottaviani, Di, Irvine, and van Breemen so you have a ready-made reference list?
+
+
+________________________
+
+Let me verify the two links in the chain I haven't independently confirmed yet — ToxinPred 3.0's toxicity data source and the Barrett et al. non-fouling dataset — since PeptiVerse's paper cites these as secondary sources rather than describing the original assays itself.I went through the PeptiVerse paper's Methods section property-by-property, and additionally verified the two links that PeptiVerse cites but doesn't itself describe in detail (ToxinPred3.0 and the Barrett et al. non-fouling dataset) by pulling their original methodology. Here's the exact picture — including where "experimentally verified" needs a caveat.
+
+## Property-by-property: what it measures, where it comes from, how solid the experimental grounding is
+
+| Property | What it measures | Root experimental source | Verification status |
+|---|---|---|---|
+| **Permeability (PAMPA)** | Effective membrane permeability coefficient (logPexp) from cell-free parallel artificial membrane assay | CycPeptMPDB → 45 published papers + 2 pharma patents, each reporting real PAMPA assay results | **Fully experimental.** Confirmed directly from the CycPeptMPDB source paper: every value is a wet-lab-measured logPexp, no synthetic/predicted values mixed in. |
+| **Permeability (Caco-2)** | Apparent permeability across Caco-2 cell monolayer (intestinal absorption proxy) | Same CycPeptMPDB lineage, subset measured by Caco-2 assay | **Fully experimental**, same provenance as PAMPA. |
+| **Permeability_CPP** | Binary: cell-penetrating vs. non-penetrating (canonical sequences) | Positives: 22 independent experimental CPP uptake studies. Negatives: sourced from UniProt | **Positives experimental; negatives are assumed, not tested.** UniProt sequences are presumed non-CPP because they weren't reported as CPPs — they were never assayed for penetration and confirmed negative. This is an inferred negative class, not an experimentally-confirmed one. |
+| **Hemolysis** | Binary: hemolytic vs. non-hemolytic | PeptideBERT/Peptide-Dashboard, cross-validated against DBAASP v3.0 original experimental records | **Experimental**, and explicitly cross-checked against DBAASP's primary experimental data (DBAASP itself compiles real red-blood-cell lysis assay results from literature). |
+| **Non-fouling** | Binary: resists vs. permits non-specific protein adsorption on a surface | Barrett et al. 2018, which itself splits into two sub-sources | **Mixed.** Part of the positive class traces to White/Jiang 2013 (real surface-adsorption assay data — SAM/zwitterionic-coating experiments). But Barrett et al.'s expanded "Human" dataset defines additional non-fouling peptides by similarity to human protein surface composition — a QSPR-style inference, not a per-peptide wet-lab measurement. So: **experimentally rooted, but partly extrapolated, not 100% assayed per peptide.** |
+| **Toxicity** | Binary: toxic vs. non-toxic | ToxinPred3.0, which pools toxic peptides from Conoserver, DRAMP, CAMPR3, dbAMP2.0, YADAMP, DBAASP-v3 | **Positive class is experimental** (these source databases hold characterized toxins — e.g., Conoserver = experimentally characterized conotoxins). **Negative class is not experimentally confirmed** — ToxinPred3.0's own paper states the non-toxic peptides were "gathered from SwissProt," i.e., presumed non-toxic by absence of toxin annotation, not tested and shown non-toxic. |
+| **Solubility** | Binary: soluble vs. insoluble | PROSO II protocol (pepcDB pipeline stage tracking) + SoluProtMutDB | **Experimentally grounded but as a categorical proxy, not a quantitative assay.** The label reflects whether a real expression/purification construct reached the "Soluble" stage in a structural genomics pipeline (or stalled ≥8 months) — a real lab outcome, but binary pipeline status, not a measured solubility limit (e.g., mg/mL). Also a domain caveat: this data is largely full proteins from structural genomics, not short peptides specifically. |
+| **Binding affinity** | Kd, Ki, or IC50 → converted to −log10(Kd/i in M) | PepLand → RCSB PDB + DrugBank entries labeled "peptide" | **Fully experimental** — these are real biophysical/biochemical binding measurements deposited with structures or drug records. |
+| **Half-life** | Circulating half-life in human serum, converted to hours | THPdb2, PEPlife, PepTherDia — "only human serum measurements were retained" | **Fully experimental**, but the paper itself flags it as "sparse, heterogeneous in experimental protocol, and often reported in coarse or qualitative units" — real data, but noisy/inconsistent precision across sources. |
+
+## Not experimental at all (important to separate out)
+- **Physicochemical properties** (MW, net charge, pI, hydrophobicity) — purely calculated from sequence via Biopython. No experimental measurement involved; these are descriptors, not assay results.
+- **ipTM scores** — computational structure-prediction confidence values from OpenFold3, used only to test whether structure confidence correlates with binding affinity (it didn't, ρ≈0.1). Not one of the trained/exposed properties.
+- **Stability (TAPE/SaProt)** — used only as a pretraining corpus for half-life models, not a standalone exposed property. Itself experimentally derived (deep mutational scanning-type assays), but peptide-half-life-specific "authentication" doesn't apply to it directly.
+
+## Cross-check against your HuggingFace screenshots
+Your 46 subsets map exactly onto Table 2 of the paper — 6.08k hemolysis rows (4765+1311), 17.2k non-fouling (13580+3600), 606 Caco-2, 6.87k PAMPA, 2.32k Permeability_CPP (1162+1162), 18.5k solubility (9668+8785), 11k toxicity (5518+5518), 1.43k/1.7k binding affinity (AA/SMILES), 245/130 half-life (SMILES/AA). Every number lines up, which confirms the HF dataset is a faithful, unaltered mirror of what's documented in the paper — nothing appears to have been silently modified or expanded between publication and the hosted data. The "chemberta/peptideclm/wt" and "pooled/unpooled" suffixes are just different **embedding representations of the same underlying labels** — not different datasets or different experimental sources.
+
+## Bottom line for your manager
+Every property in PeptiVerse traces back to a real experimental source at its root — nothing is purely synthetic. But **"experimentally verified" is not uniform in strength across properties**:
+- **Strong/direct** (every row = a real measured value): Permeability (PAMPA, Caco-2), Binding affinity, Half-life
+- **Strong but binarized from a real measurement**: Hemolysis
+- **Experimental positive class, but inferred/unconfirmed negative class**: Toxicity, Permeability_CPP
+- **Experimental root, but partly proxy-extrapolated**: Non-fouling, Solubility
+
+If Aurigene's models depend on trusting the negative class specifically (e.g., "this peptide is confirmed non-toxic" rather than "this peptide just isn't in a toxin database"), that's the one thing I'd flag as needing your own scrutiny before use — it's a common and known limitation in this type of binary bioactivity dataset, not unique to PeptiVerse.
+
+Want me to now build the master tracker spreadsheet with this exact provenance/confidence grading built in as its own column?
