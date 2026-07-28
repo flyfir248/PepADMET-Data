@@ -115,6 +115,7 @@ Caco-2 is most often used for evaluating overall permeability and involvement of
 
 Want me to pull exact DOIs/full citations for Ottaviani, Di, Irvine, and van Breemen so you have a ready-made reference list?
 
+<<<<<<< HEAD
 
 ________________________
 
@@ -152,3 +153,36 @@ Every property in PeptiVerse traces back to a real experimental source at its ro
 If Aurigene's models depend on trusting the negative class specifically (e.g., "this peptide is confirmed non-toxic" rather than "this peptide just isn't in a toxin database"), that's the one thing I'd flag as needing your own scrutiny before use — it's a common and known limitation in this type of binary bioactivity dataset, not unique to PeptiVerse.
 
 Want me to now build the master tracker spreadsheet with this exact provenance/confidence grading built in as its own column?
+=======
+_____________________________
+
+Confirmed — I went through the full paper, and here's exactly what it says (and doesn't say):
+
+## No A→B / B→A directional data exists in CycPeptMPDB
+
+The paper is explicit that CycPeptMPDB records **a single permeability value per assay**, not a bidirectional pair. Here's the exact evidence:
+
+1. **Data Collection section** states: *"membrane permeability in CycPeptMPDB was expressed as a log-scaled value LogPexp"* — one number, not two.
+
+2. When a peptide was measured by **two different assay types** (not directions) in the same publication, the paper says: *"the permeability of the assay with more data was used as the representative membrane permeability measurement. If the permeabilities from both assays were similar, the representative value was determined according to the following assay rank: (1) PAMPA, (2) Caco-2, (3) RRCK, and (4) MDCK."*
+
+3. This is confirmed visually in **Figure 6(A)** (peptide detail page), which shows fields labeled **"Permeability 1"** and **"Permeability 2"** — but these are explicitly for two different *assay types* (e.g., PAMPA vs. Caco-2), not two transport *directions*. In the example shown, Permeability 1 = −6.20 (PAMPA) and the "Other Sources" table shows a different source reporting Permeability 1 = −5.46 (PAMPA) and Permeability 2 = −4.92 (Caco2) for the same peptide structure. That's cross-assay comparison, not A→B/B→A.
+
+4. The assay counts given are: **6,941 PAMPA, 649 Caco-2, 40 MDCK, 186 RRCK** measurements — each is a single-direction passive/apparent permeability coefficient (Papp or Peff), consistent with how PAMPA (a cell-free assay) and standard Caco-2 apparent permeability are typically reported in these compiled databases.
+
+5. **No mention anywhere in the paper** of "efflux," "efflux ratio," "apical," "basolateral," "A-to-B," or "B-to-A." Not in the abstract, Methods, Results, or the peptide-detail-page schema (Figure 6A: Source, Original Name, Permeability 1, Detection Limit 1, Permeability 2, Detection Limit 2, Molecular Weight, Monomer Length, Molecule Shape, EPSA, Other Sources).
+
+## What this means for your master sheet
+
+This confirms what we discussed earlier: **CycPeptMPDB — the primary upstream source for most of the cyclic-peptide Caco-2/PAMPA/RRCK data in pepADMET, the Tan et al. Mol. Pharm. paper, and PeptiVerse — does not carry an efflux ratio field at all.** All three downstream papers inherit this same single-value structure, so there's no hidden ER column buried anywhere in this data lineage.
+
+If Aurigene genuinely needs ER, you'd have to go outside this entire family of papers/databases and either:
+- Source primary literature that explicitly reports bidirectional Caco-2 Papp(A→B) and Papp(B→A) pairs (this exists in the pharma literature, just not aggregated into these particular peptide databases), or
+- Treat ER as a wet-lab data-generation task rather than something obtainable from public peptide permeability compilations.
+
+Want me to now build the master tracker spreadsheet reflecting this — including a column that explicitly flags "Directional/ER data available: No" for every dataset sourced from this CycPeptMPDB lineage, so nobody on your team assumes it's hiding somewhere?
+
+____________________-
+
+**Has:** a single directional permeability value per peptide (LogPexp) from PAMPA/Caco-2/RRCK/MDCK assays, plus structure (SMILES/HELM), monomer composition, MW, LogP, TPSA, molecule shape (Circle/Lariat), and source literature — but **does not have**: any A→B / B→A bidirectional measurement or efflux ratio (ER) at all.
+>>>>>>> 3ffb668de75216cdf4ca37bec386c7ee6ed89e53
