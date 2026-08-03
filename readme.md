@@ -10,6 +10,36 @@ The previous methodology document explained **the CPMP paper** (Jiang, Chen & Du
 
 The structure throughout is deliberately causal: *what it is* → *how it's computed* → *why that specific choice* → *so what (what it changes in the final prediction)*.
 
+## 0.1 Pipeline Workflow at a Glance
+
+Before the step-by-step detail, here's the exact procedure end to end — which script runs when, and how the two feature representations (Section 2) travel through the pipeline in parallel before meeting at evaluation.
+
+```mermaid
+flowchart TD
+    A["CycPeptMPDB CSV exports<br/>(PAMPA, Caco-2, ...)"] --> B["data_prep.py<br/>detection-floor filter (drop LogPexp &lt; -10.0)<br/>+ train/val/test split"]
+
+    B --> C["Morgan fingerprint branch<br/>(baselines.py)"]
+    B --> D["Atom / adjacency / distance<br/>matrix branch (features_mat.py)"]
+
+    C --> E["RFR + SVR<br/>grid search"]
+
+    D --> F["MAT model<br/>(model_mat.py)"]
+    F -->|"large assays<br/>(PAMPA, Caco-2)"| G["train.py<br/>train from scratch"]
+    F -->|"small assays<br/>(RRCK, MDCK)"| H["train.py<br/>pretrain on Caco-2, then fine-tune<br/>(--init_checkpoint)"]
+
+    E --> I["Evaluate on held-out test split<br/>MSE / MAE / R² (mean ± std over repeats)"]
+    G --> I
+    H --> I
+
+    I --> J["y_randomization.py<br/>20x label-permutation control"]
+    I --> K["ablation.py<br/>remove distance / dummy node / adjacency, retrain"]
+
+    J --> L["Final results:<br/>real R² vs scrambled R², per-input R² contribution"]
+    K --> L
+```
+
+Read left to right: everything up to the fork in the middle happens once per assay (PAMPA and Caco-2 are processed independently, per Section 1.5). After the fork, the fingerprint branch and the matrix branch never mix — they're deliberately kept separate so the gap between them (Section 2) stays measurable. `run_pipeline.sh` runs the whole left-to-right chain in order for both PAMPA and Caco-2; the RRCK/MDCK fine-tuning branch is a manual follow-up step once those exports exist (see the pipeline README's "RRCK / MDCK" section).
+
 ## 1. The Raw Data: Which Columns We Use, and Why
 
 ### 1.1 Where the data comes from
