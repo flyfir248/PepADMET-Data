@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Peptide Permeability Predictor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="wrap">
+    <h1>Peptide Permeability Predictor</h1>
+    <p class="sub">
+      Predicted LogP<sub>exp</sub> from three models trained on CycPeptMPDB,
+      shown side-by-side against each model's held-out test performance.
+    </p>
+
+    <form id="predict-form">
+      <label for="smiles">SMILES</label>
+      <input id="smiles" name="smiles" type="text" placeholder="Paste a peptide SMILES string" required autocomplete="off">
+      <button type="submit" id="submit-btn">Predict</button>
+    </form>
+
+    <p id="status" class="status"></p>
+
+    <table id="results" class="results hidden">
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>Predicted LogP<sub>exp</sub></th>
+          <th>Test R&sup2;</th>
+          <th>Test MAE</th>
+          <th>Test MSE</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
