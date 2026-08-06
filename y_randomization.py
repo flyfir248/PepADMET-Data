@@ -16,6 +16,10 @@ By default this scrambles labels for the fast RFR-on-Morgan-fingerprints
 baseline (20 runs of full MAT training is expensive); pass --model mat to
 run the full MAT model instead if you have the compute budget.
 
+PATCH NOTE: --model mat now requires a GPU via train.get_device() (raises
+RuntimeError if none is visible; pass --allow_cpu to override). --model rfr
+is sklearn/CPU-bound regardless of GPU availability and is unaffected.
+
 Usage:
   python y_randomization.py --train splits/PAMPA_train.csv --test splits/PAMPA_test.csv \
       --out_dir runs/pampa_yrand --n_runs 20 --model rfr
@@ -33,7 +37,7 @@ from sklearn.metrics import r2_score
 from baselines import featurize_df
 from dataset_mat import PeptidePermeabilityDataset, collate_fn, atom_feature_dim
 from model_mat import MATModel, LAMBDA_PRESETS
-from train import run_epoch
+from train import run_epoch, get_device
 
 
 def yrand_rfr(train_df, test_df, n_runs, seed0=0):
@@ -63,10 +67,13 @@ def yrand_mat(train_csv, test_csv, n_runs, args, device):
         train_df_local.to_csv(tmp_csv, index=False)
         train_ds = PeptidePermeabilityDataset(tmp_csv, max_atoms=args.max_atoms)
         test_ds = PeptidePermeabilityDataset(test_csv, max_atoms=args.max_atoms)
-        train_loader = DataLoader(train_ds, batch_size=32, shuffle=True, collate_fn=collate_fn)
-        test_loader = DataLoader(test_ds, batch_size=32, shuffle=False, collate_fn=collate_fn)
+        pin = device.type == "cuda"
+        train_loader = DataLoader(train_ds, batch_size=32, shuffle=True, collate_fn=collate_fn, pin_memory=pin)
+        test_loader = DataLoader(test_ds, batch_size=32, shuffle=False, collate_fn=collate_fn, pin_memory=pin)
 
         torch.manual_seed(seed)
+        if device.type == "cuda":
+            torch.cuda.manual_seed_all(seed)
         model = MATModel(atom_feat_dim=atom_feature_dim(), d_model=64, n_heads=4, n_layers=2,
                           lambdas=LAMBDA_PRESETS["balanced"]).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
@@ -98,16 +105,19 @@ def main():
     ap.add_argument("--n_runs", type=int, default=20)
     ap.add_argument("--model", choices=["rfr", "mat"], default="rfr")
     ap.add_argument("--max_atoms", type=int, default=200)
+    ap.add_argument("--allow_cpu", action="store_true",
+                     help="allow --model mat to fall back to CPU if no GPU is found (default: hard error). "
+                          "Has no effect on --model rfr, which is always CPU/sklearn.")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.model == "rfr":
         train_df = pd.read_csv(args.train)
         test_df = pd.read_csv(args.test)
         real_r2, scrambled_r2s = yrand_rfr(train_df, test_df, args.n_runs)
     else:
+        device = get_device(allow_cpu=args.allow_cpu)
         real_r2, scrambled_r2s = yrand_mat(args.train, args.test, args.n_runs, args, device)
 
     result = {
