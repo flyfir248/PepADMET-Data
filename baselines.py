@@ -6,6 +6,11 @@ Step 5 baselines: Random Forest Regressor and Support Vector Regression on
 grid search rather than left at library defaults -- so the gap between these
 and the MAT model isolates what the graph + 3D distance information buys you.
 
+PATCH NOTE: main() now also pickles each best-fit estimator (rfr_model.pkl /
+svr_model.pkl) alongside baseline_results.json, so export_models.py has
+something to bundle for the Flask app. Nothing about featurization or
+grid search changed.
+
 Usage:
   python baselines.py --train splits/PAMPA_train.csv --val splits/PAMPA_val.csv \
       --test splits/PAMPA_test.csv --out_dir runs/pampa_baselines
@@ -13,6 +18,7 @@ Usage:
 import argparse
 import json
 import os
+import pickle
 import time
 import numpy as np
 import pandas as pd
@@ -124,14 +130,23 @@ def main():
                      if val_df is not None else (None, None))
 
     results = {}
-    _, results["RFR"] = fit_and_eval("RFR", RandomForestRegressor(random_state=0, n_jobs=-1), rfr_grid,
-                                      X_train, y_train, X_val, y_val, X_test, y_test)
-    _, results["SVR"] = fit_and_eval("SVR", SVR(), svr_grid,
-                                      X_train, y_train, X_val, y_val, X_test, y_test)
+    rfr_best, results["RFR"] = fit_and_eval("RFR", RandomForestRegressor(random_state=0, n_jobs=-1), rfr_grid,
+                                             X_train, y_train, X_val, y_val, X_test, y_test)
+    svr_best, results["SVR"] = fit_and_eval("SVR", SVR(), svr_grid,
+                                             X_train, y_train, X_val, y_val, X_test, y_test)
 
     with open(os.path.join(args.out_dir, "baseline_results.json"), "w") as f:
         json.dump(results, f, indent=2, default=str)
     print(f"[write] {os.path.join(args.out_dir, 'baseline_results.json')}")
+
+    # Pickle the actual fitted estimators too -- baseline_results.json only had
+    # metrics before, which is all y_randomization.py needed, but export_models.py
+    # needs the models themselves to serve predictions from.
+    for name, model in [("rfr", rfr_best), ("svr", svr_best)]:
+        pkl_path = os.path.join(args.out_dir, f"{name}_model.pkl")
+        with open(pkl_path, "wb") as f:
+            pickle.dump(model, f)
+        print(f"[write] {pkl_path}")
 
 
 if __name__ == "__main__":
