@@ -14,6 +14,11 @@ Two modes, matching the paper:
 Each run is repeated `--repeats` times (paper uses 3) with different seeds
 and metrics are reported as mean +/- std, to match Step 6.
 
+PATCH NOTE: this build requires a GPU. `get_device()` raises RuntimeError
+instead of silently falling back to CPU if CUDA isn't available. Pass
+--allow_cpu to opt back into the old fallback behavior if you ever need it
+(e.g. for a quick sanity check on a machine with no GPU).
+
 Usage:
   # PAMPA / Caco-2, from scratch
   python train.py --train splits/PAMPA_train.csv --val splits/PAMPA_val.csv \
@@ -35,6 +40,35 @@ from dataset_mat import PeptidePermeabilityDataset, collate_fn, atom_feature_dim
 from model_mat import MATModel, LAMBDA_PRESETS
 
 
+def get_device(allow_cpu: bool = False) -> torch.device:
+    """
+    GPU-only by default. Raises RuntimeError with actionable diagnostics if
+    no CUDA device is visible, instead of silently training on CPU (which is
+    what `torch.device("cuda" if torch.cuda.is_available() else "cpu")` does).
+    """
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        idx = torch.cuda.current_device()
+        print(f"[device] using GPU {idx}: {torch.cuda.get_device_name(idx)}")
+        return device
+
+    if allow_cpu:
+        print("[device] WARNING: no CUDA device found, falling back to CPU because --allow_cpu was set")
+        return torch.device("cpu")
+
+    raise RuntimeError(
+        "No CUDA GPU detected (torch.cuda.is_available() == False), and this run requires GPU.\n"
+        "Checks to run:\n"
+        "  1. `nvidia-smi` -- confirms the driver sees a GPU at all.\n"
+        "  2. `python -c \"import torch; print(torch.__version__, torch.version.cuda)\"` -- confirms "
+        "this is a CUDA build of torch, not a CPU-only wheel (a common cause after `pip install torch` "
+        "without a --index-url pointing at a CUDA build).\n"
+        "  3. If you're in a container/devcontainer, confirm it was started with GPU passthrough "
+        "(e.g. `docker run --gpus all ...`) and the NVIDIA container toolkit is installed on the host.\n"
+        "Pass --allow_cpu to override this check and run on CPU anyway."
+    )
+
+
 def build_model(device, lambdas_key="balanced", use_distance=True, use_adjacency=True,
                  use_dummy_node=True, d_model=128, n_heads=8, n_layers=4, d_ff=256):
     model = MATModel(
@@ -52,11 +86,11 @@ def run_epoch(model, loader, device, optimizer=None):
     total_loss, n = 0.0, 0
     preds, trues = [], []
     for batch in loader:
-        atom = batch["atom"].to(device)
-        adj = batch["adj"].to(device)
-        dist = batch["dist"].to(device)
-        mask = batch["mask"].to(device)
-        y = batch["y"].to(device)
+        atom = batch["atom"].to(device, non_blocking=True)
+        adj = batch["adj"].to(device, non_blocking=True)
+        dist = batch["dist"].to(device, non_blocking=True)
+        mask = batch["mask"].to(device, non_blocking=True)
+        y = batch["y"].to(device, non_blocking=True)
 
         with torch.set_grad_enabled(train_mode):
             pred = model(atom, adj, dist, mask)
@@ -85,20 +119,26 @@ def run_epoch(model, loader, device, optimizer=None):
 def train_one_run(train_csv, val_csv, test_csv, out_dir, seed, args, device):
     torch.manual_seed(seed)
     np.random.seed(seed)
+    if device.type == "cuda":
+        torch.cuda.manual_seed_all(seed)
 
     train_ds = PeptidePermeabilityDataset(train_csv, max_atoms=args.max_atoms,
                                            force_field=args.force_field, non_bonded=not args.no_nb, seed=seed)
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
+    pin = device.type == "cuda"
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn,
+                               pin_memory=pin)
 
     val_loader = None
     if val_csv:
         val_ds = PeptidePermeabilityDataset(val_csv, max_atoms=args.max_atoms,
                                              force_field=args.force_field, non_bonded=not args.no_nb, seed=seed)
-        val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
+        val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn,
+                                 pin_memory=pin)
 
     test_ds = PeptidePermeabilityDataset(test_csv, max_atoms=args.max_atoms,
                                           force_field=args.force_field, non_bonded=not args.no_nb, seed=seed)
-    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
+    test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn,
+                              pin_memory=pin)
 
     model = build_model(device, lambdas_key=args.lambdas, use_distance=not args.no_distance,
                          use_adjacency=not args.no_adjacency, use_dummy_node=not args.no_dummy_node,
@@ -164,6 +204,8 @@ def main():
     ap.add_argument("--lambdas", default="balanced", choices=list(LAMBDA_PRESETS.keys()))
     ap.add_argument("--force_field", default="MMFF", choices=["UFF", "MMFF"])
     ap.add_argument("--no_nb", action="store_true", help="use the '-NB' (no non-bonded) force-field variant")
+    ap.add_argument("--allow_cpu", action="store_true",
+                     help="allow falling back to CPU if no GPU is found (default: hard error)")
 
     # ablation flags (Step 8)
     ap.add_argument("--no_distance", action="store_true")
@@ -171,8 +213,7 @@ def main():
     ap.add_argument("--no_dummy_node", action="store_true")
 
     args = ap.parse_args()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[device] {device}")
+    device = get_device(allow_cpu=args.allow_cpu)
 
     results = []
     for r in range(args.repeats):
