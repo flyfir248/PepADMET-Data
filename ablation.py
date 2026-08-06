@@ -5,6 +5,10 @@ Step 8: removes each of the three structural inputs in turn (distance
 matrix, dummy node, adjacency matrix) and retrains, to measure each one's
 individual contribution to R2 -- reproduces the paper's ablation table.
 
+PATCH NOTE: now uses train.get_device(), which is GPU-only by default
+(raises RuntimeError if no CUDA device is visible). Pass --allow_cpu to
+fall back to CPU, matching the flag added in train.py.
+
 Usage:
   python ablation.py --train splits/PAMPA_train.csv --val splits/PAMPA_val.csv \
       --test splits/PAMPA_test.csv --out_dir runs/pampa_ablation --epochs 60
@@ -12,9 +16,8 @@ Usage:
 import argparse
 import json
 import os
-import torch
 
-from train import train_one_run
+from train import train_one_run, get_device
 
 
 CONFIGS = {
@@ -59,9 +62,11 @@ def main():
     ap.add_argument("--force_field", default="MMFF")
     ap.add_argument("--no_nb", action="store_true")
     ap.add_argument("--init_checkpoint", default=None)
+    ap.add_argument("--allow_cpu", action="store_true",
+                     help="allow falling back to CPU if no GPU is found (default: hard error)")
     base_args = ap.parse_args()
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = get_device(allow_cpu=base_args.allow_cpu)
     os.makedirs(base_args.out_dir, exist_ok=True)
 
     results = {}
