@@ -90,3 +90,16 @@ class ModelRegistry:
             "svr": self._predict_rfr_svr(self.svr, "svr", smiles),
             "mat": self._predict_mat(smiles),
         }
+
+    def predict_batch(self, smiles_list: list) -> list:
+        """Run predict_all for each SMILES, isolating failures per-item so one
+        malformed/oversized peptide doesn't abort predictions for the rest of
+        the batch. MAT's conformer generation runs sequentially here, so a
+        batch of N compounds takes roughly N times as long as a single one."""
+        results = []
+        for smiles in smiles_list:
+            try:
+                results.append(self.predict_all(smiles))
+            except Exception as e:
+                results.append({"smiles": smiles, "error": f"prediction failed: {e}"})
+        return results
