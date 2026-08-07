@@ -45,7 +45,7 @@ form {
 
 label { display: none; }
 
-input[type="text"] {
+textarea {
   flex: 1;
   min-width: 260px;
   padding: 11px 14px;
@@ -53,13 +53,23 @@ input[type="text"] {
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-family: "SF Mono", "Menlo", monospace;
+  resize: vertical;
+  line-height: 1.5;
 }
 
-input[type="text"]:focus {
+textarea:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+form {
+  align-items: flex-start;
+}
+
+form button {
+  align-self: flex-start;
 }
 
 button {
@@ -129,4 +139,21 @@ button:disabled { opacity: 0.5; cursor: default; }
 .notes {
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.smiles-cell {
+  font-family: "SF Mono", "Menlo", monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.results tbody tr.group-odd {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.results tbody tr.group-odd:hover,
+.results tbody tr.group-even:hover {
+  background: var(--panel);
 }
