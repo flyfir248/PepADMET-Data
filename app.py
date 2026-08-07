@@ -23,9 +23,27 @@ from flask import Flask, jsonify, render_template, request
 from model_registry import ModelRegistry
 
 MODELS_DIR = os.environ.get("MODELS_DIR", "exported_models/pampa")
+# MAT runs synchronously per compound (conformer generation, one at a time),
+# so a batch takes roughly this many times as long as a single prediction --
+# capped to keep a single request from running unboundedly long.
+MAX_BATCH = int(os.environ.get("MAX_BATCH", 25))
 
 app = Flask(__name__)
 registry = ModelRegistry(MODELS_DIR)
+
+
+def _parse_smiles_field(data) -> list:
+    """Accepts either a JSON list under "smiles", or a single string that may
+    contain multiple SMILES separated by newlines and/or commas (covers both
+    the JS client and a manual curl/form submission)."""
+    raw = data.get("smiles")
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        items = raw
+    else:
+        items = [tok for line in str(raw).splitlines() for tok in line.split(",")]
+    return [s.strip() for s in items if s and s.strip()]
 
 
 @app.route("/")
@@ -36,17 +54,20 @@ def index():
 @app.route("/predict", methods=["POST"])
 def predict():
     data = request.get_json(silent=True) or request.form
-    smiles = (data.get("smiles") or "").strip()
-    if not smiles:
-        return jsonify({"error": "smiles is required"}), 400
+    smiles_list = _parse_smiles_field(data)
+
+    if not smiles_list:
+        return jsonify({"error": "at least one smiles string is required"}), 400
+    if len(smiles_list) > MAX_BATCH:
+        return jsonify({"error": f"too many SMILES ({len(smiles_list)}); max is {MAX_BATCH} per request"}), 400
 
     try:
-        result = registry.predict_all(smiles)
+        results = registry.predict_batch(smiles_list)
     except Exception as e:
-        app.logger.exception("prediction failed")
+        app.logger.exception("batch prediction failed")
         return jsonify({"error": f"prediction failed: {e}"}), 500
 
-    return jsonify(result)
+    return jsonify({"results": results, "count": len(results)})
 
 
 @app.route("/health")
