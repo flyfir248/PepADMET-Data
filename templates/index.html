@@ -12,11 +12,13 @@
     <p class="sub">
       Predicted LogP<sub>exp</sub> from three models trained on CycPeptMPDB,
       shown side-by-side against each model's held-out test performance.
+      Enter one SMILES per line (or comma-separated) to compare multiple peptides at once.
     </p>
 
     <form id="predict-form">
       <label for="smiles">SMILES</label>
-      <input id="smiles" name="smiles" type="text" placeholder="Paste a peptide SMILES string" required autocomplete="off">
+      <textarea id="smiles" name="smiles" rows="4"
+        placeholder="Paste one or more peptide SMILES, one per line&#10;e.g.&#10;CC(C)C[C@@H]1NC(=O)...&#10;C/C=C/C[C@@H](C)..." required></textarea>
       <button type="submit" id="submit-btn">Predict</button>
     </form>
 
@@ -25,6 +27,7 @@
     <table id="results" class="results hidden">
       <thead>
         <tr>
+          <th>SMILES</th>
           <th>Model</th>
           <th>Predicted LogP<sub>exp</sub></th>
           <th>Test R&sup2;</th>
