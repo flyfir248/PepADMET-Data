@@ -118,9 +118,9 @@ def search_best_lambdas(train_csv, val_csv, args, device, search_epochs: int = 2
     for lambdas in LAMBDA_SEARCH_GRID:
         torch.manual_seed(0)
         train_ds = PeptidePermeabilityDataset(train_csv, max_atoms=args.max_atoms,
-                                               force_field=args.force_field, non_bonded=not args.no_nb, seed=0)
+                                               force_field=args.force_field, non_bonded=not args.no_nb, seed=0, num_conformers=args.num_conformers)
         val_ds = PeptidePermeabilityDataset(val_csv, max_atoms=args.max_atoms,
-                                             force_field=args.force_field, non_bonded=not args.no_nb, seed=0)
+                                             force_field=args.force_field, non_bonded=not args.no_nb, seed=0, num_conformers=args.num_conformers)
         train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
         val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
         y_mean, y_std = train_ds.target_stats()
@@ -151,9 +151,9 @@ def search_best_force_field(train_csv, val_csv, args, device, search_epochs: int
     for ff, nb in FORCE_FIELD_GRID:
         torch.manual_seed(0)
         train_ds = PeptidePermeabilityDataset(train_csv, max_atoms=args.max_atoms,
-                                               force_field=ff, non_bonded=nb, seed=0)
+                                               force_field=ff, non_bonded=nb, seed=0, num_conformers=args.num_conformers)
         val_ds = PeptidePermeabilityDataset(val_csv, max_atoms=args.max_atoms,
-                                             force_field=ff, non_bonded=nb, seed=0)
+                                             force_field=ff, non_bonded=nb, seed=0, num_conformers=args.num_conformers)
         train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
         val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
         y_mean, y_std = train_ds.target_stats()
@@ -230,7 +230,7 @@ def train_one_run(train_csv, val_csv, test_csv, out_dir, seed, args, device):
         torch.cuda.manual_seed_all(seed)
 
     train_ds = PeptidePermeabilityDataset(train_csv, max_atoms=args.max_atoms,
-                                           force_field=args.force_field, non_bonded=not args.no_nb, seed=seed)
+                                           force_field=args.force_field, non_bonded=not args.no_nb, seed=seed, num_conformers=args.num_conformers)
     pin = device.type == "cuda"
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn,
                                pin_memory=pin)
@@ -238,12 +238,12 @@ def train_one_run(train_csv, val_csv, test_csv, out_dir, seed, args, device):
     val_loader = None
     if val_csv:
         val_ds = PeptidePermeabilityDataset(val_csv, max_atoms=args.max_atoms,
-                                             force_field=args.force_field, non_bonded=not args.no_nb, seed=seed)
+                                             force_field=args.force_field, non_bonded=not args.no_nb, seed=seed, num_conformers=args.num_conformers)
         val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn,
                                  pin_memory=pin)
 
     test_ds = PeptidePermeabilityDataset(test_csv, max_atoms=args.max_atoms,
-                                          force_field=args.force_field, non_bonded=not args.no_nb, seed=seed)
+                                          force_field=args.force_field, non_bonded=not args.no_nb, seed=seed, num_conformers=args.num_conformers)
     test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn,
                               pin_memory=pin)
 
@@ -317,6 +317,10 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--weight_decay", type=float, default=1e-5)
     ap.add_argument("--max_atoms", type=int, default=200)
+    ap.add_argument("--num_conformers", type=int, default=1,
+                     help="candidate conformers to embed per molecule, keeping the lowest-energy one "
+                          "(1=fast/previous behavior; 5-10 recommended for final results -- see "
+                          "features_mat.py's embed_conformer docstring)")
     ap.add_argument("--d_model", type=int, default=128)
     ap.add_argument("--n_heads", type=int, default=8)
     ap.add_argument("--n_layers", type=int, default=4)
