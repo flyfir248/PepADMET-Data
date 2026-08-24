@@ -49,6 +49,13 @@ python train.py \
 
 
 
+____________________
+
+python train.py --train splits/PAMPA_train.csv --val splits/PAMPA_val.csv --test splits/PAMPA_test.csv --out_dir cpmp_runs/pampa_final --lambdas balanced --force_field MMFF --num_conformers 5 --repeats 3 --epochs 100
+
+
+
+
 
 
 
