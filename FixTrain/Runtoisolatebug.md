@@ -1,4 +1,4 @@
-python train.py --train splits/PAMPA_train.csv --val splits/PAMPA_val.csv \
+ipython train.py --train splits/PAMPA_train.csv --val splits/PAMPA_val.csv \
     --test splits/PAMPA_test.csv --out_dir cpmp_runs/pampa_mat_diag \
     --paper_faithful_arch_only --repeats 1
 
@@ -52,6 +52,52 @@ python train.py \
 ____________________
 
 python train.py --train splits/PAMPA_train.csv --val splits/PAMPA_val.csv --test splits/PAMPA_test.csv --out_dir cpmp_runs/pampa_final --lambdas balanced --force_field MMFF --num_conformers 5 --repeats 3 --epochs 100
+
+
+______________________
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+rm -rf .conformer_cache   # force clean re-embed; this changes atom features so old cached matrices are stale
+
+python train.py --train splits/PAMPA_train.csv --val splits/PAMPA_val.csv \
+    --test splits/PAMPA_test.csv --out_dir cpmp_runs/pampa_overhaul \
+    --lambdas balanced --force_field MMFF --num_conformers 5 --repeats 3 --epochs 100
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
